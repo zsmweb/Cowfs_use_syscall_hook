@@ -6,9 +6,17 @@
 #define DRIVER_AUTHOR "zhoushengmeng <zhoushengmeng@meizu.com>"
 #define DRIVER_DESC   "copy on write fs"
 
+char* private_root = "/home/cow_private/";
+char* install_root = "/home/zhoushengmeng/Code/";
+module_param(private_root, charp, 0000);
+MODULE_PARM_DESC(private_root, "A character string for private_root");
+module_param(install_root, charp, 0000);
+MODULE_PARM_DESC(install_root, "A character string for install_root");
+
 static int __init init_cowfs(void)
 {
 	printk(KERN_INFO "Hello, world 4\n");
+	printk("the parameter is %s:%s\n",install_root,private_root);
 	init_func_ptrs();
 	register_cowfs_hook();
 	return 0;

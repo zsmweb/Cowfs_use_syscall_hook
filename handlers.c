@@ -7,6 +7,8 @@
  ****************************************************************************/
 #include "kprobe_hook.h"    /* Needed for kprobehook*/
 
+extern char* private_root;
+extern char* install_root;
 
 static long alloc_in_user_space(long size)
 {
@@ -88,11 +90,12 @@ static int list_files(struct files_struct * files,char* name)
               	    memset(p_p,0,PAGESIZE);
               	    p_p = d_path(&(file->f_path), p_p, PAGESIZE);
                     if(strcmp(p_p,name)){
-                        printk("compare failed :%s:%s\n",p_p,name);
+                        //printk("compare failed :%s:%s\n",p_p,name);
                     }else{
+						printk("compare ok :%s:%s\n",p_p,name);
                         return i;
                     }
-              	    printk("FD:%d:filename:%s\n",i,p_p);
+              	    //printk("FD:%d:filename:%s\n",i,p_p);
 				}
 			}
 			i++;
@@ -121,8 +124,9 @@ void handle_pre_getdents(struct kprobe *p,struct pt_regs *regs)
     ppath = d_path(&(dir->f_path), ppath, PAGESIZE-len_priroot);
     memcpy(pppath +len_priroot,ppath,strlen(ppath));
     printk("file:%s:%s:fd:%d,ret:%d:current:%p:\n",pppath,ppath,fd,regs->ax,current);
-    printk("hello pos is %lx\n",dir->f_pos);
-    if(strncmp(ppath,"/home/zhoushengmeng/Code",24)==0){
+    //printk("hello pos is %lx\n",dir->f_pos);
+    if(strncmp(ppath,install_root,strlen(install_root)-1)==0){
+		printk("func: %s  \n", __func__);
 		if(dir->f_pos == 0){
 		    
 		}else if(dir->f_pos>=0x7fffffffffffffff){
@@ -154,13 +158,14 @@ void handle_ret_getdents(struct kretprobe_instance *p,struct pt_regs *regs)
     memcpy(pppath,fakeroot,frlen);
     sprintf(pppath+frlen,"%d",uid);
     int len_priroot = strlen(pppath);
-    printk("%d:%s\n",len_priroot,pppath);
+    //printk("%d:%s\n",len_priroot,pppath);
     char* ppath = pppath + len_priroot;
     ppath = d_path(&(dir->f_path), ppath, PAGESIZE-len_priroot);
     memcpy(pppath +len_priroot,ppath,strlen(ppath));
-    printk("file:%s:%s:fd:%d,ret:%d:current:%p:\n",pppath,ppath,fd,regs->ax,current);
-    printk("hello pos is %lx\n",dir->f_pos);
-    if(strncmp(ppath,"/home/zhoushengmeng/Code",24)==0){
+    //printk("file:%s:%s:fd:%d,ret:%d:current:%p:\n",pppath,ppath,fd,regs->ax,current);
+    //printk("hello pos is %lx\n",dir->f_pos);
+    if(strncmp(ppath,install_root,strlen(install_root)-1)==0){
+		printk("func: %s  \n", __func__);
 		if(dir->f_pos == 0){
 		    printk("no access 1 !!!!!!!!!!!!\n");
 		}else if(dir->f_pos>=0x7fffffffffffffff){
@@ -174,9 +179,78 @@ void handle_ret_getdents(struct kretprobe_instance *p,struct pt_regs *regs)
 					set_fs(o_fs);
 		            printk("XXXXXXXXXXXXXXXXX:close fd:%d\n",fakefd);
 		        }
-		    }
+				if(fakedir&&fakedir->f_pos>0){
+					struct pt_regs* task_regs = task_pt_regs(current);
+					long len = regs->ax;
+					printk("%lx:%lx\n",regs->di,task_regs->di);
+					printk("%lx:%lx\n",regs->si,task_regs->si);
+					printk("%lx:%lx\n",regs->dx,task_regs->dx);
+					printk("%lx:%lx\n",regs->ax,task_regs->ax);
+					if(len<=0||len>task_regs->dx)
+						return 0;
+
+					char *buf = kmalloc(len,GFP_KERNEL);
+					if(buf){
+						copy_from_user(buf,task_regs->si,len);
+						//unsigned short int lec = (unsigned short int)buf[16];
+						//printk(":fuck::%x  :%d\n",lec,sizeof(short int));
+						int j = 0;
+						int i = 0;
+						for(;i<len;){
+							int entlen = (unsigned short int)buf[i+16];
+							printk("xxx:%s\n",buf+i+16+2);
+							if(strcmp(buf+i+16+2,".")&&strcmp(buf+i+16+2,"..")){
+								printk("is not the . or ..\n");
+								copy_to_user(task_regs->si+j,buf+i,entlen);
+								j+=entlen;
+							}
+							i+=entlen;
+						}
+						regs->ax = j;
+						printk("change return value 2 %x\n",j);
+						kfree(buf);
+					}
+					goto end_return;
+				}
+		    }	
 		}
+		//here change result for normal mode
+		printk("here change result for normal mode!{@\n");
+		struct pt_regs* task_regs = task_pt_regs(current);
+		long len = regs->ax;
+		printk("%lx:%lx\n",regs->di,task_regs->di);
+		printk("%lx:%lx\n",regs->si,task_regs->si);
+		printk("%lx:%lx\n",regs->dx,task_regs->dx);
+		printk("%lx:%lx\n",regs->ax,task_regs->ax);
+		if(len<=0||len>task_regs->dx){
+			printk("return 0 @}\n");
+			return 0;
+		}
+
+		char *buf = kmalloc(len,GFP_KERNEL);
+		if(buf){
+			copy_from_user(buf,task_regs->si,len);
+			//unsigned short int lec = (unsigned short int)buf[16];
+			//printk(":fuck::%x  :%d\n",lec,sizeof(short int));
+			int j = 0;
+			int i = 0;
+			for(;i<len;){
+				int entlen = (unsigned short int)buf[i+16];
+				printk("xxx:%s\n",buf+i+16+2);
+				if(strcmp(buf+i+16+2,"zsm")&&strcmp(buf+i+16+2,"ddddd")){
+					printk("is not the zsm or ddddd\n");
+					copy_to_user(task_regs->si+j,buf+i,entlen);
+					j+=entlen;
+				}
+				i+=entlen;
+			}
+			regs->ax = j;
+			printk("change return value 2 %x\n",j);
+			kfree(buf);
+		}
+		printk("here change result for normal mode!@}\n");
     }
+end_return:
     fput(dir);
 }
 
@@ -192,12 +266,12 @@ long HANDLE_ENTRY_getdents(int fd,struct dirent *dirp,unsigned int count)
     memcpy(pppath,fakeroot,frlen);
     sprintf(pppath+frlen,"%d",uid);
     int len_priroot = strlen(pppath);
-    printk("%d:%s\n",len_priroot,pppath);
+    //printk("%d:%s\n",len_priroot,pppath);
     char* ppath = pppath + len_priroot;
     ppath = d_path(&(dir->f_path), ppath, PAGESIZE-len_priroot);
     memcpy(pppath +len_priroot,ppath,strlen(ppath));
-    printk("hello pos is %lx\n",dir->f_pos);
-    if(strncmp(ppath,"/home/zhoushengmeng/Code",24)==0){
+    //printk("hello pos is %lx\n",dir->f_pos);
+    if(strncmp(ppath,install_root,strlen(install_root)-1)==0){
 		if(dir->f_pos == 0){
 		    /*long len_2_user = strlen(pppath)+1;
 		    void __user *fakefile = alloc_in_user_space(len_2_user);
