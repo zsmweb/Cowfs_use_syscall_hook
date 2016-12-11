@@ -10,10 +10,7 @@
 extern char* private_root;
 extern char* install_root;
 
-static long alloc_in_user_space(long size)
-{
-	return round_down(task_pt_regs(current)->sp - size,16);
-}
+
 #define COPY_MAX_SIZE 4096*1000
 static int kernel_copy_file(char* fin,char* fout){
 	mm_segment_t fs = get_fs();
@@ -119,11 +116,11 @@ void handle_pre_getdents(struct kprobe *p,struct pt_regs *regs)
     memcpy(pppath,fakeroot,frlen);
     sprintf(pppath+frlen,"%d",uid);
     int len_priroot = strlen(pppath);
-    printk("%d:%s\n",len_priroot,pppath);
+    //printk("%d:%s\n",len_priroot,pppath);
     char* ppath = pppath + len_priroot;
     ppath = d_path(&(dir->f_path), ppath, PAGESIZE-len_priroot);
     memcpy(pppath +len_priroot,ppath,strlen(ppath));
-    printk("file:%s:%s:fd:%d,ret:%d:current:%p:\n",pppath,ppath,fd,regs->ax,current);
+    //printk("file:%s:%s:fd:%d,ret:%d:current:%p:\n",pppath,ppath,fd,regs->ax,current);
     //printk("hello pos is %lx\n",dir->f_pos);
     if(strncmp(ppath,install_root,strlen(install_root)-1)==0){
 		printk("func: %s  \n", __func__);
@@ -344,3 +341,4 @@ int HANDLE_ENTRY_open(const char *pathname, int flags, mode_t mode){
 	jprobe_return();
     return 0;
 }
+

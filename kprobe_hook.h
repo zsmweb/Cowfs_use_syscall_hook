@@ -48,7 +48,6 @@ void handle_pre_getdents(struct kprobe *p,struct pt_regs *regs);
 void handle_ret_getdents(struct kretprobe_instance *p,struct pt_regs *regs);
 
 
-
 #define PAGESIZE 4096
 #define FAKE_ROOT char* fakeroot = private_root ;\
 	int frlen = strlen(fakeroot);

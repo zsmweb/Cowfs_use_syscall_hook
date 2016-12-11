@@ -31,7 +31,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "kprobe_hook.h"    /* Needed for kprobehook*/
-
+extern char* install_root;
 #define KP_PREHANDLE(FUNC_NAME,SYM_NAME) \
 static int (*HANDLE_PRE_##FUNC_NAME)(struct kprobe*,struct pt_regs*);\
 static int pre_##FUNC_NAME (struct kprobe *p, struct pt_regs *regs) \
@@ -86,12 +86,47 @@ JP_LIST_ENT(open,"sys_open",1),
 };
 //@}
 
+static long alloc_in_user_space(long size)
+{
+	return round_down(task_pt_regs(current)->sp - size,16);
+}
+#define CHG_FILE_NAME(FUNC_NAME,REG) \
+void handle_pre_##FUNC_NAME(struct kprobe *p,struct pt_regs *regs){ \
+	char file_name[PAGESIZE];\
+	int len_filename = strlen_user(regs->REG);\
+	if(copy_from_user(file_name,regs->REG,len_filename)){\
+		return 0;\
+	}\
+	if(*file_name != '/'){\
+		struct fs_struct *fs = current->fs;\
+		char* pwd = d_path(&(fs->pwd), file_name, PAGESIZE);\
+		memcpy(file_name,file_name+PAGESIZE-strlen(file_name)-1,strlen(file_name)+1);\
+		memcpy(file_name,pwd,strlen(pwd));\
+		memcpy(file_name+strlen(pwd),file_name+PAGESIZE-strlen(file_name)-1,strlen(file_name)+1);\
+		printk("long file_name:%s\n",file_name);\
+	}\
+	if(0 == strncmp(file_name,install_root,strlen(install_root)-1)){\
+		printk("fffuuuuuuuuuuucccccccckkkk\n");\
+		char* test = "/home/zhoushengmeng/test";  \
+		struct pt_regs *task_regs = task_pt_regs(current); \
+		long len = strlen_user(task_regs->REG);\
+		void __user *new_name = alloc_in_user_space(strlen(test)+1); \
+		if(copy_to_user(new_name,test,strlen(test)+1)){\
+		        printk("copy failed!\n");\
+		        return 0;\
+		}\
+		printk("change name from %lx to %lx llll:%d\n",regs->REG,new_name,strlen_user(new_name));\
+		regs->REG = new_name;\
+	}\
+    return 0; \
+}
 
-
+CHG_FILE_NAME(open,di)
 
 void init_func_ptrs(void){
 	HANDLE_RET_getdents = handle_ret_getdents;
 	HANDLE_PRE_getdents = handle_pre_getdents;
+	HANDLE_PRE_open = handle_pre_open;
 }
 
 void register_cowfs_hook(void){
