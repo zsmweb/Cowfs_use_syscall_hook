@@ -3,6 +3,7 @@
  */
 
 #include "kprobe_hook.h"    /* Needed for kprobehook*/
+
 #define DRIVER_AUTHOR "zhoushengmeng <zhoushengmeng@meizu.com>"
 #define DRIVER_DESC   "copy on write fs"
 
@@ -15,8 +16,9 @@ MODULE_PARM_DESC(install_root, "A character string for install_root");
 
 static int __init init_cowfs(void)
 {
-	printk(KERN_INFO "Hello, world 4\n");
+	printk(KERN_INFO "Cowfs init ============= {@!\n");
 	printk("the parameter is %s:%s\n",install_root,private_root);
+	
 	init_func_ptrs();
 	register_cowfs_hook();
 	return 0;
@@ -24,7 +26,7 @@ static int __init init_cowfs(void)
 
 static void __exit cleanup_cowfs(void)
 {
-	printk(KERN_INFO "Goodbye, world 4\n");
+	printk(KERN_INFO "Cowfs exit ===================@}!\n");
 	unregister_cowfs_hook();
 }
 

@@ -6,7 +6,7 @@
  *  <user@host>
  ****************************************************************************/
 #include "kprobe_hook.h"    /* Needed for kprobehook*/
-
+#include "utils.h"
 extern char* private_root;
 extern char* install_root;
 
@@ -23,6 +23,7 @@ static int kernel_copy_file(char* fin,char* fout){
 	}
 	fs = get_fs();
     set_fs(KERNEL_DS);
+	//create_path(fout);
 	struct file* file_out = filp_open(fout,O_RDWR|O_CREAT,0777);
 	set_fs(fs);
 	if(IS_ERR(file_out)){
@@ -164,7 +165,7 @@ void handle_ret_getdents(struct kretprobe_instance *p,struct pt_regs *regs)
     if(strncmp(ppath,install_root,strlen(install_root)-1)==0){
 		printk("func: %s  \n", __func__);
 		if(dir->f_pos == 0){
-		    printk("no access 1 !!!!!!!!!!!!\n");
+		    printk("none access 1 !!!!!!!!!!!!\n");
 		}else if(dir->f_pos>=0x7fffffffffffffff){
 			int fakefd = list_files(current->files, pppath);
 		    if(fakefd >= 0){
@@ -250,13 +251,16 @@ void handle_ret_getdents(struct kretprobe_instance *p,struct pt_regs *regs)
 end_return:
     fput(dir);
 }
-
+/***
+ *	we can't call the functions caused sleeping like sys_open .etc in prehandle
+ *  so we call those functions in entry in jprobes
+ */
 long HANDLE_ENTRY_getdents(int fd,struct dirent *dirp,unsigned int count)
 {
     kuid_t uid = current_fsuid();
     if((unsigned int)uid.val == 0)
         jprobe_return();
-    printk("func: %s  \n", __func__);    
+    //printk("func: %s  \n", __func__);    
     struct file* dir = fget(fd);
     char pppath[PAGESIZE] = {0};
     FAKE_ROOT
@@ -270,27 +274,19 @@ long HANDLE_ENTRY_getdents(int fd,struct dirent *dirp,unsigned int count)
     //printk("hello pos is %lx\n",dir->f_pos);
     if(strncmp(ppath,install_root,strlen(install_root)-1)==0){
 		if(dir->f_pos == 0){
-		    /*long len_2_user = strlen(pppath)+1;
-		    void __user *fakefile = alloc_in_user_space(len_2_user);
-		    if(copy_to_user(fakefile, pppath, len_2_user)){
-				printk("copy 1 failed\n");
-				jprobe_return();
-				return 0;
-			}else{
-		        printk("copy_to_user success:%s\n",pppath);
-		    }*/
-
 		    bool irq_stat = irqs_disabled();
-			printk("MMMMMMMMMMMMMMMMMMMMM:%d\n",irq_stat);
 		    unsigned long flags;
 		    local_irq_save(flags);
 		    irq_stat = irqs_disabled();
-		    printk("MMMMMMMMMMMMMMMMMMMMM:%d\n",irq_stat);
+
 			mm_segment_t o_fs = get_fs();
 		    if(irq_stat) 
 		        local_irq_enable();
 		    set_fs(KERNEL_DS);
-		    
+		    /***
+			 * call sys_open in userspase
+			 * because we have hooked sys_open ,we should not call sys_open straitly
+			 ***/
 			int fakefd = get_unused_fd_flags(O_DIRECTORY);
 			if (fakefd >= 0) {
 				struct file *f  = filp_open(pppath,O_DIRECTORY,0);
@@ -302,10 +298,8 @@ long HANDLE_ENTRY_getdents(int fd,struct dirent *dirp,unsigned int count)
 				}
 			}
 		    set_fs(o_fs);
-		    
-		    printk("MMMMMMMMMMMMMMMMMMMMM:XXXXXXXXXXXXXXX%d\n",irqs_disabled());
+
 		    local_irq_restore(flags);
-		    printk("MMMMMMMMM:XXXXXXXXXXXXXXX%d\n",irqs_disabled());
 
 		}else if(dir->f_pos>=0x7fffffffffffffff){
 			
@@ -330,9 +324,8 @@ int HANDLE_ENTRY_open(const char *pathname, int flags, mode_t mode){
 			if(irq_stat) 
 		        local_irq_enable();
 			//preempt_enable();/*use set_fs instead!*/
-			printk("111111111111111111111111111\n");
-			kernel_copy_file("/home/zsmweb/123.txt","/home/zsmweb/234.txt");
-			printk("222222222222222222222222222\n");
+			create_path("/home/zsmweb/aaaa/bbbbb/ccccc/234.txt");
+			kernel_copy_file("/home/zsmweb/123.txt","/home/zsmweb/aaaa/bbbbb/ccccc/234.txt");
 			local_irq_restore(flags);
 		}else
 			printk("wirte  the file %s\n",pathname);

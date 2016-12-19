@@ -38,6 +38,7 @@
 #include <linux/syscalls.h>
 #include <linux/fdtable.h>
 #include <linux/fs_struct.h>
+#include <linux/namei.h>
 
 
 void register_cowfs_hook(void);

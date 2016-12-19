@@ -77,7 +77,7 @@ RP_LIST_ENT(getdents,"sys_getdents",0),
 };
 //@}
 
-//{@ add a return handler of a function just add 2 line code like the example
+//{@ add a ENTRY handler of a function just add 2 line code like the example
 long HANDLE_ENTRY_getdents(int fd,struct dirent *dirp,unsigned int count);
 int HANDLE_ENTRY_open(const char *pathname, int flags, mode_t mode);
 static struct jprobe jprobe_list[] = {
@@ -90,24 +90,28 @@ static long alloc_in_user_space(long size)
 {
 	return round_down(task_pt_regs(current)->sp - size,16);
 }
+
 #define CHG_FILE_NAME(FUNC_NAME,REG) \
 void handle_pre_##FUNC_NAME(struct kprobe *p,struct pt_regs *regs){ \
-	char file_name[PAGESIZE];\
+	char file_name[PAGESIZE]={0};\
 	int len_filename = strlen_user(regs->REG);\
 	if(copy_from_user(file_name,regs->REG,len_filename)){\
 		return 0;\
 	}\
 	if(*file_name != '/'){\
 		struct fs_struct *fs = current->fs;\
-		char* pwd = d_path(&(fs->pwd), file_name, PAGESIZE);\
-		memcpy(file_name,file_name+PAGESIZE-strlen(file_name)-1,strlen(file_name)+1);\
-		memcpy(file_name,pwd,strlen(pwd));\
-		memcpy(file_name+strlen(pwd),file_name+PAGESIZE-strlen(file_name)-1,strlen(file_name)+1);\
-		printk("long file_name:%s\n",file_name);\
+		char tmpbuf[PAGESIZE]={0};\
+		char* pwd = d_path(&(fs->pwd), tmpbuf, PAGESIZE);\
+		int len_pwd = strlen(pwd);\
+		memcpy(file_name+len_filename,pwd,len_pwd+1);\
+		memset(file_name+len_filename+len_pwd,'/',1);\
+		memcpy(file_name+len_filename+len_pwd+1,file_name,len_filename+1);\
+		memcpy(tmpbuf,file_name+len_filename,len_pwd+len_filename+2);\
+		memcpy(file_name,tmpbuf,len_pwd+len_filename+2);\
+		printk("long file_name:%s,%p:%p\n",file_name,pwd,file_name);\
 	}\
 	if(0 == strncmp(file_name,install_root,strlen(install_root)-1)){\
-		printk("fffuuuuuuuuuuucccccccckkkk\n");\
-		char* test = "/home/zhoushengmeng/test";  \
+		char* test = "/home/zhoushengmeng/test";\
 		struct pt_regs *task_regs = task_pt_regs(current); \
 		long len = strlen_user(task_regs->REG);\
 		void __user *new_name = alloc_in_user_space(strlen(test)+1); \
